@@ -52,12 +52,12 @@ def main():
 
     api_client.authenticate(username, password)
     roster_data = api_client.get_roster_data()
-
+    roster_data = roster_data["roster"]
     if roster_data:
         print("\n" + "=" * 50)
         print("ROSTER DATA:")
         print("=" * 50)
-        print(json.dumps(roster_data))
+        print(json.dumps(roster_data, indent=4))
 
     else:
         print("Authentication failed. Cannot proceed.")
