@@ -121,9 +121,13 @@ class Database:
             self.connection.commit()
         except Exception:
             connect()
-
-            self.cursor.execute(query)
-            self.connection.commit()
+            try:
+                self.cursor.execute(query)
+                self.connection.commit()
+            except Exception as E:
+                print("QUERY FAILED")
+                print(query)
+                raise E
 
     def run_search(self,query):
         self.cursor.execute(query)
