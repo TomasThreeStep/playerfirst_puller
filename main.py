@@ -7,7 +7,7 @@ from Util.UCDatabase import UCDatabase
 
 def login(username,password):
 	resp = requests.post(
-		"https://playerfirst-staging.azurewebsites.net/api/auth",
+		"https://playerfirsttech.com/api/auth",
 		json={
 			"username": username,
 			"password": password
@@ -19,14 +19,14 @@ def login(username,password):
 	return resp_json
 
 
-def get_programs(affiliationId):
+def get_programs(affiliation):
 
 	vowels = ["a", "e", "i", "o", "u"]
 
 	all_programs = []
 	for vowel in vowels:
 		resp = requests.get(
-			f"https://playerfirst-staging.azurewebsites.net/api/suggest/program?affiliationId={str(affiliationId)}&q={vowel}&pastVisible=true&limit=100&approvedOnly=false"
+			f"https://playerfirsttech.com/api/suggest/program?affiliationId={str(affiliation["id"])}&q={vowel}&pastVisible=true&limit=100&approvedOnly=false"
 		)
 		vals = resp.json()
 		all_programs = all_programs + vals
@@ -44,9 +44,9 @@ def get_programs(affiliationId):
 def get_program_info(program,aff,jwt):
 
 	resp = requests.get(
-		# f"https://playerfirst-staging.azurewebsites.net/api/program/{program["value"]}/division"
-		f"https://playerfirst-staging.azurewebsites.net/api/suggest/division?programId={program["value"]}&limit=90000&affiliationId={aff}&isRegistrationByTeamOnly=false&showProgram=false&showBrand=false",
-		# f"https://playerfirst-staging.azurewebsites.net/api/suggest/division?programId=15601&limit=90000&affiliationId=156&isRegistrationByTeamOnly=false&showProgram=false&showBrand=false",
+		# f"https://playerfirsttech.com/api/program/{program["value"]}/division"
+		f"https://playerfirsttech.com/api/suggest/division?programId={program["value"]}&limit=90000&affiliationId={aff}&isRegistrationByTeamOnly=false&showProgram=false&showBrand=false",
+		# f"https://playerfirsttech.com/api/suggest/division?programId=15601&limit=90000&affiliationId=156&isRegistrationByTeamOnly=false&showProgram=false&showBrand=false",
 		headers={"Authorization": f"Bearer {jwt}"}
 	)
 	resp_json = resp.json()
@@ -54,14 +54,29 @@ def get_program_info(program,aff,jwt):
 	return resp_json
 
 
-def get_roster(division,jwt):
+def get_roster(division,jwt,program):
 	resp = requests.get(
-		f"https://playerfirst-staging.azurewebsites.net/api/roster/division/{division["value"]}",
+		f"https://playerfirsttech.com/api/roster/division/{division["value"]}",
 		headers={"Authorization": f"Bearer {jwt}"}
 	)
 	resp_json = resp.json()['roster']
 
-	return resp_json
+
+	test_resp = requests.post(
+		f"https://www.ucfootballcamps.com/util/admin/Programs/default.aspx/UpdatePlayerGridTableData",
+		headers={"Cookie": f"AffiliationId=373; DeviceToken=6c36b31be5add1a5f4ca30d8cb6f817eb6c2da8a1d95c667ffcd0effa6971aae; UserId=2341220; _ga_HH0G5J868B=GS2.1.s1768920925$o6$g1$t1768920959$j26$l0$h0; _ga=GA1.1.1766980624.1767022906; BodyClass=; NumberInCart=; UtcLastActive=1/20/2026 2:56:11 PM; jwtPermissions=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJwZXJtczIiOnsicm9sZUlkVG9BZmZpbGlhdGlvbklkcyI6eyIyIjpbNzEsODQsMTU2LDE4MSwxODksMjQ5LDM3M119fSwiYWZmaWxpYXRpb25pZCI6MzczLCJ1c2VyaWQiOjIzNDEyMjAsImFjY2Vzc0NvZGVJZCI6bnVsbCwidXNlcm5hbWUiOiJ1Y3JlcG9ydGFkbWluIiwicHJvZmlsZWlkcyI6bnVsbCwicmVhZG9ubHkiOmZhbHNlLCJnZHJpdmVhdXRoIjpudWxsLCJmaXJzdE5hbWUiOiJVQyIsInByb2ZpbGVJbWFnZVVybCI6bnVsbCwidGltZXpvbmVJZCI6IkVhc3Rlcm4gU3RhbmRhcmQgVGltZSIsImlzTWZhUmVxdWlyZWQiOnRydWUsImlzUGVyc2lzdGVudCI6ZmFsc2UsInByb2dyYW1JZCI6bnVsbCwiaXNzdWVkVXRjIjoiMjAyNi0wMS0yMFQxNDo1NTo0Ny4xNTU4Mzg5WiIsImV4cCI6MTc2OTUyNTc0N30.5CJJJq18NbM-lKibyOPw35ptdFQCsDdguETAYmluxPE"},
+		json={"editMode":False,"programId":program,"divisionIds":[division["value"]]}
+
+	)
+	test_data = test_resp.json()["d"]["Data"]
+	ret_val = []
+	for row in test_data:
+		new_row = {}
+		for col in row["Data"]:
+			new_row[col["k"]] = col["v"]
+		ret_val.append(new_row)
+
+	return ret_val
 
 def insert_affiliation(affil):
 
@@ -134,53 +149,56 @@ def main():
 	affiliations = resp_json['affiliations']
 	jwt = resp_json['jwt']
 
+	uc_camps = None
 	for affiliation in resp_json["affiliationDetails"]:
-		insert_affiliation(affiliation)
+		if affiliation["name"] == "UC Football Camps":
+			uc_camps = affiliation
+
+	insert_affiliation(uc_camps)
 
 
-	for affiliation in affiliations:
 
-		# if affiliation != 156:
-		# 	continue
+	# if affiliation != 156:
+	# 	continue
 
-		programs = get_programs(affiliation)
+	programs = get_programs(uc_camps)
 
-		try:
-			for program in programs:
-				program_info = get_program_info(program,affiliation,jwt)
+	# try:
+	for program in programs:
+		program_info = get_program_info(program,uc_camps,jwt)
 
-				prog = insert_program(program,affiliation)
+		prog = insert_program(program,uc_camps["id"])
 
-				try:
+		# try:
 
-					print(program["name"])
-					for division in program_info:
-						# if division["name"] != "Player Registration - Central Florida - 8U":
-						# 	continue
+		print(program["name"])
+		for division in program_info:
+			# if division["name"] != "Player Registration - Central Florida - 8U":
+			# 	continue
 
-						name_to_insert = division['name']
-						# name_to_insert = division['name']
-						div = insert_division(name_to_insert,prog)
+			name_to_insert = division['name']
+			# name_to_insert = division['name']
+			div = insert_division(name_to_insert,prog)
 
-						print("\t\t"+division["name"])
+			print("\t\t"+division["name"])
 
-						if division["name"] == "deprecated":
-							continue
-						try:
-							roster = get_roster(division,jwt)
+			if division["name"] == "deprecated":
+				continue
 
-							insert_roster(division["name"],roster,div)
-						except Exception as e:
-							print(e)
-							# raise e
-				except Exception as e:
-					print(e)
+			roster = get_roster(division,jwt,prog)
 
-		except Exception as e:
-			print(e)
-			# print(divisions)
+			insert_roster(division["name"],roster,div)
+			# except Exception as e:
+			# 	print(e)
+				# raise e
+		# except Exception as e:
+		# 	print(e)
 
-		print(resp_json)
+	# except Exception as e:
+	# 	print(e)
+		# print(divisions)
+
+	print(resp_json)
 
 
 
